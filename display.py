@@ -1,6 +1,6 @@
 import board
 import neopixel
-from PIL import ImageEnhance
+from PIL import ImageEnhance, ImageOps
 
 import config
 
@@ -35,12 +35,19 @@ class Display:
             brightness=config.BRIGHTNESS,
             auto_write=False,
         )
+        self.flipped = False
+
+    def set_flipped(self, flipped):
+        self.flipped = flipped
 
     def set_image(self, image):
         """image: a PIL Image in RGB mode, sized (DISPLAY_WIDTH, DISPLAY_HEIGHT).
         Every frame (transit, clock, art) passes through here, so scaling by
-        COLOR_BRIGHTNESS here applies the same dimming to all of them uniformly."""
+        COLOR_BRIGHTNESS -- and mirroring when self.flipped -- here applies
+        uniformly to all of them."""
         dimmed = ImageEnhance.Brightness(image).enhance(config.COLOR_BRIGHTNESS)
+        if self.flipped:
+            dimmed = ImageOps.mirror(dimmed)
         px = dimmed.load()
         for y in range(config.DISPLAY_HEIGHT):
             for x in range(config.DISPLAY_WIDTH):

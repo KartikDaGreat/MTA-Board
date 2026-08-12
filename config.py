@@ -109,3 +109,10 @@ ULTRASONIC_THRESHOLD_M = 0.20   # 20cm; a quick pass below this triggers a mode 
 # toggles the display on/off instead of switching modes. A pass shorter than
 # this is a "wave" (mode switch); this long or longer is a "hold" (power toggle).
 HOLD_SECONDS = 1.5
+
+# Keeping the hold going all the way out to this long additionally flips the
+# display horizontally (toggle) -- for viewing the board correctly through a
+# camera/mirror. Since HOLD_SECONDS fires first, the ordinary power-toggle
+# hold still happens along the way; on_flip forces the display back on so
+# the flip is actually visible as confirmation.
+FLIP_HOLD_SECONDS = 10

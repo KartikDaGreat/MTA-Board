@@ -21,6 +21,7 @@ state = {
     "auto_cycle": True,
     "last_blip_at": 0.0,
     "display_on": True,
+    "flipped": False,
     # Greet is a PREEMPTION, not a MODES entry -- it must never join the
     # auto-cycle or it'd resurface with stale visitor data.
     "greet_active": False,
@@ -54,6 +55,17 @@ def on_hold():
     """Keeping something within range continuously for HOLD_SECONDS toggles
     the display on/off instead of switching modes."""
     state["display_on"] = not state["display_on"]
+    state["last_blip_at"] = time.monotonic()
+
+
+def on_flip():
+    """Keeping something within range continuously out to FLIP_HOLD_SECONDS
+    (for viewing the board correctly through a camera/mirror) toggles a
+    horizontal mirror of the whole display. on_hold has already fired and
+    toggled display_on by this point, so force it back on here -- otherwise
+    the flip would be invisible until some other gesture wakes it."""
+    state["flipped"] = not state["flipped"]
+    state["display_on"] = True
     state["last_blip_at"] = time.monotonic()
 
 
@@ -95,7 +107,7 @@ def build_mode_frame(mode, arrivals, page):
 
 def main():
     display = Display()
-    sensor.on_gesture(on_wave, on_hold)
+    sensor.on_gesture(on_wave, on_hold, on_flip)
 
     page = 0
     next_page_at = time.monotonic() + config.PAGE_SECONDS
@@ -104,6 +116,7 @@ def main():
     current_mode = MODES[state["mode_index"]]
     mode_started_at = time.monotonic()
     display_was_on = True
+    display_flipped = False
 
     arrivals = {**subway_cache.get(), **bus_cache.get()}
     current_frame = layout.build_frame(arrivals, page)
@@ -144,6 +157,14 @@ def main():
                     # next natural refresh, and don't count the off period
                     # toward the current mode's on-screen time.
                     mode_started_at = now
+                    current_frame = build_mode_frame(current_mode, arrivals, page)
+                    display.set_image(current_frame)
+                    display.show()
+
+            if state["flipped"] != display_flipped:
+                display_flipped = state["flipped"]
+                display.set_flipped(display_flipped)
+                if state["display_on"]:
                     current_frame = build_mode_frame(current_mode, arrivals, page)
                     display.set_image(current_frame)
                     display.show()
