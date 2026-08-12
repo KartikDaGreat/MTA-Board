@@ -95,7 +95,9 @@ GREET_POLL_SECONDS = 2        # how often main.py checks the file's mtime -- tha
 GREET_DURATION_SECONDS = 60   # total time the greet preempts the display, flash included
 GREET_FLASH_COUNT = 3         # on/off pulses at the start of the greet, ~3s total
 GREET_SCROLL_PIXELS_PER_SECOND = 10  # marquee speed for the top-panel location line
-GREET_COLOR = (255, 255, 255)        # shared by the flash, marquee, and clock text
+GREET_COLOR = (60, 160, 255)          # light blue, shared by the flash, marquee, and clock text --
+                                       # matches renderer.TEXT_COLOR (white refracts/scatters most
+                                       # on the diffuser at this brightness)
 
 # --- Ultrasonic sensor (mode switch) ---
 # HC-SR04-style sensor. ECHO is 5V and must be stepped down to 3.3V
@@ -110,9 +112,10 @@ ULTRASONIC_THRESHOLD_M = 0.20   # 20cm; a quick pass below this triggers a mode 
 # this is a "wave" (mode switch); this long or longer is a "hold" (power toggle).
 HOLD_SECONDS = 1.5
 
-# Keeping the hold going all the way out to this long additionally flips the
-# display horizontally (toggle) -- for viewing the board correctly through a
-# camera/mirror. Since HOLD_SECONDS fires first, the ordinary power-toggle
+# Keeping the hold going all the way out to this long steps main.FLIP_MODES
+# to its next entry (normal -> raster -> logical -> normal), for viewing the
+# board correctly through a camera/mirror -- repeat the gesture to reach
+# either mode. Since HOLD_SECONDS fires first, the ordinary power-toggle
 # hold still happens along the way; on_flip forces the display back on so
-# the flip is actually visible as confirmation.
+# the new mode is actually visible as confirmation.
 FLIP_HOLD_SECONDS = 10

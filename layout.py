@@ -10,7 +10,7 @@ def page_count():
     return max(1, -(-len(ALL_ROUTES) // ROWS_PER_PAGE))  # ceil division
 
 
-def build_frame(arrivals, page):
+def build_frame(arrivals, page, flipped=False):
     image = renderer.new_frame()
     start = (page % page_count()) * ROWS_PER_PAGE
     page_routes = ALL_ROUTES[start : start + ROWS_PER_PAGE]
@@ -19,7 +19,13 @@ def build_frame(arrivals, page):
     for route_config in page_routes:
         route = route_config["route"]
         renderer.draw_route_row(
-            image, y, route, route_config["color"], route_config["arrow"], arrivals.get(route, [])
+            image,
+            y,
+            route,
+            route_config["color"],
+            route_config["arrow"],
+            arrivals.get(route, []),
+            flipped=flipped,
         )
         y += ROW_HEIGHT
 

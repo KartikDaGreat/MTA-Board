@@ -16,12 +16,20 @@ subway_cache = TTLCache(mta.fetch_arrivals, config.FEED_POLL_SECONDS)
 bus_cache = TTLCache(bus.fetch_arrivals, config.FEED_POLL_SECONDS)
 
 MODES = ["transit", "art", "clock"]
+# Two independently-available ways to view the board correctly through a
+# camera: "raster" mirrors the whole rendered frame pixel-for-pixel (correct
+# when something else un-mirrors it again, e.g. an actual mirror or a
+# self-mirroring/selfie camera -- but every glyph/icon reads backwards on a
+# plain capture). "logical" instead re-lays-out the transit row (arrivals,
+# blob, and label swap sides) while every digit/icon still goes through its
+# normal, unmirrored draw call -- correct on a plain, non-mirroring camera.
+FLIP_MODES = ["normal", "raster", "logical"]
 state = {
     "mode_index": 0,
     "auto_cycle": True,
     "last_blip_at": 0.0,
     "display_on": True,
-    "flipped": False,
+    "flip_mode": "normal",
     # Greet is a PREEMPTION, not a MODES entry -- it must never join the
     # auto-cycle or it'd resurface with stale visitor data.
     "greet_active": False,
@@ -60,11 +68,13 @@ def on_hold():
 
 def on_flip():
     """Keeping something within range continuously out to FLIP_HOLD_SECONDS
-    (for viewing the board correctly through a camera/mirror) toggles a
-    horizontal mirror of the whole display. on_hold has already fired and
-    toggled display_on by this point, so force it back on here -- otherwise
-    the flip would be invisible until some other gesture wakes it."""
-    state["flipped"] = not state["flipped"]
+    cycles through FLIP_MODES: normal -> raster -> logical -> normal. Both
+    non-normal modes stay available; repeating the gesture steps to the
+    next one. on_hold has already fired and toggled display_on by this
+    point, so force it back on here -- otherwise a flip would be invisible
+    until some other gesture wakes it."""
+    next_index = (FLIP_MODES.index(state["flip_mode"]) + 1) % len(FLIP_MODES)
+    state["flip_mode"] = FLIP_MODES[next_index]
     state["display_on"] = True
     state["last_blip_at"] = time.monotonic()
 
@@ -97,12 +107,12 @@ def run_greet(display, saved_frame):
     state["abort_greet"] = False
 
 
-def build_mode_frame(mode, arrivals, page):
+def build_mode_frame(mode, arrivals, page, flip_mode):
     if mode == "art":
         return art.build_frame()
     if mode == "clock":
         return clock.build_frame()
-    return layout.build_frame(arrivals, page)
+    return layout.build_frame(arrivals, page, flipped=(flip_mode == "logical"))
 
 
 def main():
@@ -116,7 +126,7 @@ def main():
     current_mode = MODES[state["mode_index"]]
     mode_started_at = time.monotonic()
     display_was_on = True
-    display_flipped = False
+    display_flip_mode = "normal"
 
     arrivals = {**subway_cache.get(), **bus_cache.get()}
     current_frame = layout.build_frame(arrivals, page)
@@ -143,7 +153,7 @@ def main():
             if state["greet_active"]:
                 run_greet(display, current_frame)
                 mode_started_at = time.monotonic()
-                current_frame = build_mode_frame(current_mode, arrivals, page)
+                current_frame = build_mode_frame(current_mode, arrivals, page, state["flip_mode"])
                 display.set_image(current_frame)
                 display.show()
                 continue
@@ -157,15 +167,15 @@ def main():
                     # next natural refresh, and don't count the off period
                     # toward the current mode's on-screen time.
                     mode_started_at = now
-                    current_frame = build_mode_frame(current_mode, arrivals, page)
+                    current_frame = build_mode_frame(current_mode, arrivals, page, state["flip_mode"])
                     display.set_image(current_frame)
                     display.show()
 
-            if state["flipped"] != display_flipped:
-                display_flipped = state["flipped"]
-                display.set_flipped(display_flipped)
+            if state["flip_mode"] != display_flip_mode:
+                display_flip_mode = state["flip_mode"]
+                display.set_flipped(display_flip_mode == "raster")
                 if state["display_on"]:
-                    current_frame = build_mode_frame(current_mode, arrivals, page)
+                    current_frame = build_mode_frame(current_mode, arrivals, page, display_flip_mode)
                     display.set_image(current_frame)
                     display.show()
 
@@ -191,27 +201,28 @@ def main():
                     art.enter()
                 elif current_mode == "transit":
                     next_page_at = now + config.PAGE_SECONDS
-                new_frame = build_mode_frame(current_mode, arrivals, page)
+                new_frame = build_mode_frame(current_mode, arrivals, page, state["flip_mode"])
                 crossfade_to(display, current_frame, new_frame)
                 current_frame = new_frame
 
             if current_mode in ("art", "clock"):
-                current_frame = build_mode_frame(current_mode, arrivals, page)
+                current_frame = build_mode_frame(current_mode, arrivals, page, state["flip_mode"])
                 display.set_image(current_frame)
                 display.show()
                 time.sleep(0.05 if current_mode == "art" else 0.5)
                 continue
 
             arrivals = {**subway_cache.get(), **bus_cache.get()}
+            flipped = state["flip_mode"] == "logical"
 
             if now >= next_page_at:
                 page += 1
                 next_page_at = now + config.PAGE_SECONDS
-                new_frame = layout.build_frame(arrivals, page)
+                new_frame = layout.build_frame(arrivals, page, flipped=flipped)
                 crossfade_to(display, current_frame, new_frame)
                 current_frame = new_frame
             else:
-                current_frame = layout.build_frame(arrivals, page)
+                current_frame = layout.build_frame(arrivals, page, flipped=flipped)
                 display.set_image(current_frame)
                 display.show()
 
